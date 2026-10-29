@@ -12,6 +12,7 @@ let items = [
 function el(tag, className, value) { const node = document.createElement(tag); if (className) node.className = className; if (value !== undefined) node.textContent = value; return node; }
 function add(parent, tag, className, value) { const node = el(tag, className, value); parent.append(node); return node; }
 
+if ($('#sampleBtn')) {
 $('#sampleBtn').addEventListener('click', async () => {
   try { leaseText.value = await (await fetch('/sample-lease.txt')).text(); leaseText.focus(); }
   catch { alert('Could not load sample lease.'); }
@@ -51,6 +52,7 @@ function renderResult(data) {
   if (data.key_dates_and_fees?.length) { add(resultPanel, 'div', 'result-title', 'Dates & fees mentioned'); const list = add(resultPanel, 'ul', 'detail-list'); for (const value of data.key_dates_and_fees) add(list, 'li', '', `${value.item}: ${value.amount_or_date}`); }
   add(resultPanel, 'div', 'notice', `${data.confidence || 'Review confidence is limited.'} This is not legal advice.`);
 }
+}
 
 function renderBoard() {
   const board = $('#boardColumns'); board.replaceChildren();
@@ -70,6 +72,7 @@ function renderBoard() {
   }
 }
 
+if ($('#generateBtn')) {
 $('#generateBtn').addEventListener('click', () => {
   const bedrooms = Number($('#bedrooms').value); const furnished = $('#furnished').value === 'yes';
   const names = ['Shower curtain', 'Trash cans', 'Cleaning supplies', 'Vacuum', 'First-aid kit', 'Kitchen basics', 'Wi-Fi router', 'Toilet paper', 'Laundry detergent', 'Dish soap'];
@@ -77,3 +80,4 @@ $('#generateBtn').addEventListener('click', () => {
   items = names.map((name, index) => ({ id: index + 1, name, assignedTo: index < 4 ? roommates[index] : 'Unassigned', shared: !name.startsWith('Bedroom') })); renderBoard();
 });
 renderBoard();
+}
