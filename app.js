@@ -19,9 +19,20 @@ $('#sampleBtn').addEventListener('click', async () => {
 });
 $('#leaseFile').addEventListener('change', async event => {
   const file = event.target.files?.[0]; if (!file) return;
-  if (!/\.(txt|md)$/i.test(file.name)) { alert('Please use a .txt or .md file.'); return; }
-  if (file.size > 80000) { alert('File is too large for this demo.'); return; }
-  leaseText.value = await file.text();
+  const status = $('#uploadStatus');
+  const pdf = /\.pdf$/i.test(file.name);
+  if (!/\.(pdf|txt|md)$/i.test(file.name)) { status.textContent = 'Please use a PDF, .txt, or .md file.'; return; }
+  if (file.size > (pdf ? 10 * 1024 * 1024 : 80000)) { status.textContent = pdf ? 'PDFs are limited to 10 MB.' : 'Text files are limited to 80 KB.'; return; }
+  status.textContent = pdf ? 'Extracting text from PDF…' : 'Reading file…';
+  try {
+    if (pdf) {
+      const response = await fetch('/api/extract-pdf', { method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: file });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not read this PDF.');
+      leaseText.value = data.text;
+    } else leaseText.value = await file.text();
+    status.textContent = `${file.name} is ready to analyze.`;
+  } catch (error) { status.textContent = error.message; }
 });
 $('#analyzeBtn').addEventListener('click', async () => {
   const text = leaseText.value.trim();

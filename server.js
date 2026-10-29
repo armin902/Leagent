@@ -4,6 +4,7 @@ import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { analyzeOffline } from './analyzer.js';
 import { initAuth, currentUser, publicUser, register, login, googleLogin, clearSession } from './auth.js';
+import { extractLeaseText } from './pdf-lease-text.js';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const port = Number(process.env.PORT || 3000);
@@ -58,6 +59,21 @@ const server = http.createServer(async (req, res) => {
       const input = await bodyJson(req);
       const user = req.url === '/api/register' ? await register(res, input) : req.url === '/api/login' ? await login(res, input) : await googleLogin(res, input.credential);
       json(res, 200, { user }); return;
+    }
+    if (req.method === 'POST' && req.url === '/api/extract-pdf') {
+      if (!currentUser(req)) { json(res, 401, { error: 'Please sign in first.' }); return; }
+      if (req.headers['content-type']?.split(';')[0] !== 'application/pdf') { json(res, 415, { error: 'Upload a PDF file.' }); return; }
+      const chunks = []; let size = 0;
+      for await (const chunk of req) {
+        size += chunk.length;
+        if (size > 10 * 1024 * 1024) { json(res, 413, { error: 'PDFs are limited to 10 MB.' }); return; }
+        chunks.push(chunk);
+      }
+      const pdf = Buffer.concat(chunks);
+      if (pdf.subarray(0, 5).toString() !== '%PDF-') { json(res, 400, { error: 'This is not a valid PDF file.' }); return; }
+      try { json(res, 200, { text: await extractLeaseText(pdf) }); }
+      catch (error) { json(res, error.status || 400, { error: error.status ? error.message : 'Could not read this PDF. Try exporting it again or paste the lease text.' }); }
+      return;
     }
     if (req.method === 'POST' && req.url === '/api/analyze') {
       if (!currentUser(req)) { json(res, 401, { error: 'Please sign in first.' }); return; }

@@ -5,10 +5,29 @@ import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+function pdfWithText(text) {
+  const stream = `BT /F1 12 Tf 14 TL 50 700 Td ${text.split('|').map(line => `(${line}) Tj T*`).join(' ')} ET`;
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+    `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  for (const [index, object] of objects.entries()) { offsets.push(Buffer.byteLength(pdf)); pdf += `${index + 1} 0 obj\n${object}\nendobj\n`; }
+  const xref = Buffer.byteLength(pdf);
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets.slice(1)) pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return Buffer.from(pdf);
+}
+
 test('account flow and separate protected service pages', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'leagent-auth-'));
   const port = 35000 + Math.floor(Math.random() * 20000);
-  const child = spawn(process.execPath, ['server.js'], { env: { ...process.env, PORT: String(port), LEAGENT_DATA_DIR: dir }, stdio: 'ignore' });
+  const child = spawn(process.execPath, ['server.js'], { env: { ...process.env, PORT: String(port), LEAGENT_DATA_DIR: dir, OPENAI_API_KEY: '' }, stdio: 'ignore' });
   const base = `http://localhost:${port}`;
   try {
     let ready = false;
@@ -33,6 +52,17 @@ test('account flow and separate protected service pages', async () => {
     const analysis = await fetch(`${base}/api/analyze`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ text: sample }) });
     assert.equal(analysis.status, 200);
     assert.ok((await analysis.json()).clauses.length > 0);
+    const pdf = pdfWithText('Monthly rent is $900. The lease renews automatically.|Subleasing requires written approval from the landlord.');
+    const extracted = await fetch(`${base}/api/extract-pdf`, { method: 'POST', headers: { 'content-type': 'application/pdf', cookie }, body: pdf });
+    assert.equal(extracted.status, 200);
+    const pdfText = (await extracted.json()).text;
+    assert.match(pdfText, /Subleasing requires written approval/);
+    const pdfAnalysis = await fetch(`${base}/api/analyze`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ text: pdfText }) });
+    assert.equal(pdfAnalysis.status, 200);
+    assert.ok((await pdfAnalysis.json()).summary);
+    const scan = await fetch(`${base}/api/extract-pdf`, { method: 'POST', headers: { 'content-type': 'application/pdf', cookie }, body: pdfWithText('') });
+    assert.equal(scan.status, 422);
+    assert.match((await scan.json()).error, /OCR first/);
     const logout = await fetch(`${base}/api/logout`, { method: 'POST', headers: { cookie } });
     assert.equal(logout.status, 200);
     const signedOut = await fetch(`${base}/api/me`, { headers: { cookie } });

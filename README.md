@@ -38,7 +38,7 @@ $env:OPENAI_API_KEY = 'your-key'
 npm start
 ```
 
-The prototype accepts pasted lease text and `.txt` or `.md` files. Convert PDFs to text before using it. Lease text sent for live analysis goes to the configured OpenAI API. This is not legal advice; the score is a review priority, not a legal conclusion.
+The prototype accepts pasted lease text and PDF, `.txt`, or `.md` files. PDF uploads are limited to 10 MB and 100 pages; selectable text is extracted on the server and shown in the lease editor before analysis. Scanned PDFs need OCR first. Lease text sent for live analysis goes to the configured OpenAI API. This is not legal advice; the score is a review priority, not a legal conclusion.
 
 ## Demo flow
 
