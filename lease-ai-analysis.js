@@ -12,24 +12,37 @@ const schema = {
 
 const instructions = 'You are a cautious lease reading assistant for students. Analyze the entire provided lease text. Summarize the main obligations and costs, and quote or closely paraphrase actual clauses. Risk score is a rough review priority from 0 to 100, not a legal determination. Be conservative. Say not stated when information is absent. Do not cite law or claim a clause is illegal. Provide short practical questions. The confidence field must mention limitations of reviewing only extracted text.';
 
-export async function analyzeWithAi(text, config, request = fetch) {
+export async function analyzeWithAi(text, config, request = fetch, pause = ms => new Promise(resolve => setTimeout(resolve, ms))) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 90000);
   try {
     let response;
     let content;
+    let usedModel;
+    let notice;
     if (config.GEMINI_API_KEY) {
-      const model = config.GEMINI_MODEL || 'gemini-3.8-flash';
-      response = await request(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-        method: 'POST', signal: controller.signal,
-        headers: { 'x-goog-api-key': config.GEMINI_API_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: instructions }] },
-          contents: [{ role: 'user', parts: [{ text }] }],
-          generationConfig: { responseFormat: { text: { mimeType: 'APPLICATION_JSON', schema } }, maxOutputTokens: 8192 }
-        })
+      const primaryModel = config.GEMINI_MODEL || 'gemini-3.8-flash';
+      const fallbackModel = config.GEMINI_FALLBACK_MODEL || (!config.GEMINI_MODEL ? 'gemini-3.6-flash' : null);
+      const models = fallbackModel && fallbackModel !== primaryModel ? [primaryModel, fallbackModel] : [primaryModel];
+      const body = JSON.stringify({
+        systemInstruction: { parts: [{ text: instructions }] },
+        contents: [{ role: 'user', parts: [{ text }] }],
+        generationConfig: { responseFormat: { text: { mimeType: 'APPLICATION_JSON', schema } }, maxOutputTokens: 8192 }
       });
-      if (!response.ok) throw new Error(`Gemini request failed (${response.status})`);
+      for (const model of models) {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          response = await request(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+            method: 'POST', signal: controller.signal,
+            headers: { 'x-goog-api-key': config.GEMINI_API_KEY, 'Content-Type': 'application/json' }, body
+          });
+          if (response.ok) { usedModel = model; break; }
+          if (![408, 429, 500, 502, 503, 504].includes(response.status)) throw new Error(`Gemini request failed (${response.status})`);
+          if (attempt === 0) await pause(1000 + Math.random() * 500);
+        }
+        if (response.ok) break;
+      }
+      if (!response.ok) throw new Error(`Gemini request failed (${response.status}) after retries`);
+      if (usedModel !== primaryModel) notice = `Gemini's primary model was unavailable. Analyzed with ${usedModel}.`;
       const data = await response.json();
       content = data.candidates?.[0]?.content?.parts?.filter(part => !part.thought).map(part => part.text || '').join('');
     } else {
@@ -47,6 +60,6 @@ export async function analyzeWithAi(text, config, request = fetch) {
     }
     if (!content) throw new Error('AI returned no analysis.');
     const result = JSON.parse(content);
-    return { ...result, risk_score: Math.max(0, Math.min(100, result.risk_score)), mode: 'ai', provider: config.GEMINI_API_KEY ? 'Gemini' : 'OpenAI' };
+    return { ...result, risk_score: Math.max(0, Math.min(100, result.risk_score)), mode: 'ai', provider: config.GEMINI_API_KEY ? 'Gemini' : 'OpenAI', model: usedModel || config.OPENAI_MODEL || 'gpt-4o-mini', ...(notice ? { notice } : {}) };
   } finally { clearTimeout(timer); }
 }

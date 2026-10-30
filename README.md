@@ -35,7 +35,7 @@ On Render, the local `.data/` account and session files need a persistent disk o
 
 ## Live AI analysis
 
-Set `GEMINI_API_KEY` in the server environment. On Render, add it to the web service's **Environment** settings; do not put it in the browser or commit it to Git. The default model is `gemini-3.8-flash`; set `GEMINI_MODEL` to another model available to your API key if needed. The app uses the [Gemini generateContent API with structured JSON output](https://ai.google.dev/api/generate-content). If both Gemini and OpenAI keys are present, Gemini is used. `OPENAI_API_KEY` and optional `OPENAI_MODEL` remain supported when no Gemini key is set. Without either key, or if the API call fails, the app shows a limited local keyword scan and labels it accordingly.
+Set `GEMINI_API_KEY` in the server environment. On Render, add it to the web service's **Environment** settings; do not put it in the browser or commit it to Git. The default model is `gemini-3.8-flash`; set `GEMINI_MODEL` to another model available to your API key if needed. Temporary Gemini errors are retried, then the app tries `gemini-3.6-flash` if the default model is still unavailable. Set `GEMINI_FALLBACK_MODEL` to choose a different backup model. The app uses the [Gemini generateContent API with structured JSON output](https://ai.google.dev/api/generate-content). If both Gemini and OpenAI keys are present, Gemini is used. `OPENAI_API_KEY` and optional `OPENAI_MODEL` remain supported when no Gemini key is set. Without either key, or if the API call fails, the app shows a limited local keyword scan and labels it accordingly.
 
 ```powershell
 $env:GEMINI_API_KEY = 'your-key'
