@@ -1,3 +1,5 @@
+import { maxLeaseCharacters, maxTextFileBytes, maxPdfBytes } from './lease-limits.js';
+
 const $ = selector => document.querySelector(selector);
 const leaseText = $('#leaseText');
 const resultPanel = $('#resultPanel');
@@ -22,7 +24,7 @@ $('#leaseFile').addEventListener('change', async event => {
   const status = $('#uploadStatus');
   const pdf = /\.pdf$/i.test(file.name);
   if (!/\.(pdf|txt|md)$/i.test(file.name)) { status.textContent = 'Please use a PDF, .txt, or .md file.'; return; }
-  if (file.size > (pdf ? 10 * 1024 * 1024 : 80000)) { status.textContent = pdf ? 'PDFs are limited to 10 MB.' : 'Text files are limited to 80 KB.'; return; }
+  if (file.size > (pdf ? maxPdfBytes : maxTextFileBytes)) { status.textContent = pdf ? 'PDFs are limited to 15 MB.' : 'Text files are limited to 1 MB.'; return; }
   status.textContent = pdf ? 'Extracting text from PDF…' : 'Reading file…';
   try {
     if (pdf) {
@@ -30,13 +32,18 @@ $('#leaseFile').addEventListener('change', async event => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not read this PDF.');
       leaseText.value = data.text;
-    } else leaseText.value = await file.text();
+    } else {
+      const text = await file.text();
+      if (text.length > maxLeaseCharacters) throw new Error(`Lease text is limited to ${maxLeaseCharacters.toLocaleString()} characters.`);
+      leaseText.value = text;
+    }
     status.textContent = `${file.name} is ready to analyze.`;
   } catch (error) { status.textContent = error.message; }
 });
 $('#analyzeBtn').addEventListener('click', async () => {
   const text = leaseText.value.trim();
   if (text.length < 80) { alert('Please paste at least 80 characters of lease text.'); leaseText.focus(); return; }
+  if (text.length > maxLeaseCharacters) { alert(`Lease text is limited to ${maxLeaseCharacters.toLocaleString()} characters.`); leaseText.focus(); return; }
   const button = $('#analyzeBtn'); button.disabled = true; button.textContent = 'Analyzing lease…';
   resultPanel.replaceChildren(); const loading = add(resultPanel, 'div', 'empty-state'); add(loading, 'span', 'empty-icon', '✦'); add(loading, 'h3', '', 'Reading your lease…'); add(loading, 'p', '', 'Looking for key terms and questions worth asking.');
   try {
@@ -49,7 +56,7 @@ $('#analyzeBtn').addEventListener('click', async () => {
 
 function renderResult(data) {
   resultPanel.replaceChildren();
-  const top = add(resultPanel, 'div', 'result-top'); add(top, 'h3', '', 'Lease snapshot'); add(top, 'span', 'mode-badge', data.mode === 'ai' ? '✦ LIVE AI ANALYSIS' : 'LOCAL PROTOTYPE SCAN');
+  const top = add(resultPanel, 'div', 'result-top'); add(top, 'h3', '', 'Lease snapshot'); add(top, 'span', 'mode-badge', data.mode === 'ai' ? `✦ ${data.provider || 'LIVE AI'} ANALYSIS` : 'LOCAL PROTOTYPE SCAN');
   if (data.notice) add(resultPanel, 'div', 'notice', data.notice);
   const scoreRow = add(resultPanel, 'div', 'score-row'); const score = Number(data.risk_score) || 0; add(scoreRow, 'div', `score ${score >= 60 ? 'high' : score < 25 ? 'low' : ''}`, String(score)); const scoreCopy = add(scoreRow, 'div'); add(scoreCopy, 'strong', '', 'Review priority / 100'); add(scoreCopy, 'small', '', 'A guide to which terms deserve a closer look, not a legal rating.');
   add(resultPanel, 'p', 'summary', data.summary || 'No summary available.');
