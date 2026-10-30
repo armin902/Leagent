@@ -2,6 +2,8 @@
 
 A Penn State student housing copilot prototype with accounts and separate pages for the lease reader, move-in board, social hub, and calendar.
 
+Here is the link for our product: https://leagent.onrender.com/calendar
+
 ## Run
 
 Requires Node.js 20 or newer. Install packages once:
