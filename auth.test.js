@@ -27,7 +27,7 @@ function pdfWithText(text) {
 test('account flow and separate protected service pages', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'leagent-auth-'));
   const port = 35000 + Math.floor(Math.random() * 20000);
-  const child = spawn(process.execPath, ['server.js'], { env: { ...process.env, PORT: String(port), LEAGENT_DATA_DIR: dir, OPENAI_API_KEY: '', GEMINI_API_KEY: '' }, stdio: 'ignore' });
+  const child = spawn(process.execPath, ['server.js'], { env: { ...process.env, PORT: String(port), LEAGENT_DATA_DIR: dir, OPENAI_API_KEY: '' }, stdio: 'ignore' });
   const base = `http://localhost:${port}`;
   try {
     let ready = false;
@@ -52,12 +52,6 @@ test('account flow and separate protected service pages', async () => {
     const analysis = await fetch(`${base}/api/analyze`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ text: sample }) });
     assert.equal(analysis.status, 200);
     assert.ok((await analysis.json()).clauses.length > 0);
-    const longLease = `Monthly rent is $900.\n\n${'Tenant agrees to the conditions.\n\n'.repeat(3200)}`;
-    assert.ok(longLease.length > 80000);
-    const longAnalysis = await fetch(`${base}/api/analyze`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ text: longLease }) });
-    assert.equal(longAnalysis.status, 200);
-    const oversized = await fetch(`${base}/api/analyze`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ text: 'x'.repeat(500001) }) });
-    assert.equal(oversized.status, 400);
     const pdf = pdfWithText('Monthly rent is $900. The lease renews automatically.|Subleasing requires written approval from the landlord.');
     const extracted = await fetch(`${base}/api/extract-pdf`, { method: 'POST', headers: { 'content-type': 'application/pdf', cookie }, body: pdf });
     assert.equal(extracted.status, 200);

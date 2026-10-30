@@ -31,18 +31,16 @@ npm start
 
 The Google button is disabled until a client ID is configured. This prototype stores accounts on the local server; it is not a deployed multi-user service.
 
-On Render, the local `.data/` account and session files need a persistent disk or external database to survive restarts and redeploys.
-
 ## Live AI analysis
 
-Set `GEMINI_API_KEY` in the server environment. On Render, add it to the web service's **Environment** settings; do not put it in the browser or commit it to Git. The default model is `gemini-3.8-flash`; set `GEMINI_MODEL` to another model available to your API key if needed. The app uses the [Gemini generateContent API with structured JSON output](https://ai.google.dev/api/generate-content). If both Gemini and OpenAI keys are present, Gemini is used. `OPENAI_API_KEY` and optional `OPENAI_MODEL` remain supported when no Gemini key is set. Without either key, or if the API call fails, the app shows a limited local keyword scan and labels it accordingly.
+Set `OPENAI_API_KEY` in the server environment before starting. The key stays on the server. You can optionally set `OPENAI_MODEL` (default `gpt-4o-mini`). The app uses the [OpenAI Responses API with structured output](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses). Without a key, or if the API call fails, it uses a limited local keyword scan and labels the result accordingly. This makes the sample demo work offline, but the local scan can miss or misread clauses.
 
 ```powershell
-$env:GEMINI_API_KEY = 'your-key'
+$env:OPENAI_API_KEY = 'your-key'
 npm start
 ```
 
-The prototype accepts up to 500,000 characters of pasted lease text and PDF, `.txt`, or `.md` files. PDF uploads are limited to 15 MB and 200 pages; selectable text is extracted on the server and shown in the lease editor before analysis. Scanned PDFs need OCR first. Lease text sent for live analysis goes to the configured AI provider. This is not legal advice; the score is a review priority, not a legal conclusion.
+The prototype accepts pasted lease text and PDF, `.txt`, or `.md` files. PDF uploads are limited to 10 MB and 100 pages; selectable text is extracted on the server and shown in the lease editor before analysis. Scanned PDFs need OCR first. Lease text sent for live analysis goes to the configured OpenAI API. This is not legal advice; the score is a review priority, not a legal conclusion.
 
 ## Demo flow
 
